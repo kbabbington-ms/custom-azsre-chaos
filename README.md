@@ -34,22 +34,6 @@ az login --use-device-code
 
 > 💡 **Tip**: Type `menu` in the terminal to see all available commands including break scenarios, fix commands, and kubectl shortcuts.
 
-### Create SRE Agent
-
-SRE Agent is deployed automatically via Bicep (`Microsoft.App/agents@2025-05-01-preview`) as part of `deploy.ps1`. The deploying user is automatically assigned the **SRE Agent Administrator** role.
-
-After deployment, manage the agent at the [SRE Agent Portal](https://aka.ms/sreagent/portal).
-
-> 💡 To skip SRE Agent deployment, set `deploySreAgent = false` in `infra/bicep/main.bicepparam`.
-
-### Validate Deployment
-
-After deployment, verify everything is healthy:
-
-```powershell
-.\scripts\validate-deployment.ps1 -ResourceGroupName "rg-srelab-eastus2"
-```
-
 ## 💥 Breaking Things (The Fun Part!)
 
 Once deployed, you can break the application using shortcut commands:
