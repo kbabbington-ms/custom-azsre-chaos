@@ -41,8 +41,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     enableRbacAuthorization: enableRbacAuthorization
     enableSoftDelete: true
     softDeleteRetentionInDays: 7
-    // Note: enablePurgeProtection is omitted to default to false for dev/demo
-    // Once enabled, purge protection cannot be disabled
+    enablePurgeProtection: true
     publicNetworkAccess: 'Enabled'
     networkAcls: {
       bypass: 'AzureServices'

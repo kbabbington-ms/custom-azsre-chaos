@@ -42,6 +42,9 @@ param logAnalyticsWorkspaceId string
 @description('Azure Container Registry ID for image pull permissions')
 param acrId string
 
+@description('Optional custom name for the AKS node resource group (MC_ group). If empty, Azure uses the default naming convention.')
+param nodeResourceGroupName string = ''
+
 // =============================================================================
 // RESOURCES
 // =============================================================================
@@ -60,6 +63,7 @@ resource aks 'Microsoft.ContainerService/managedClusters@2024-02-01' = {
   properties: {
     kubernetesVersion: kubernetesVersion
     dnsPrefix: name
+    nodeResourceGroup: !empty(nodeResourceGroupName) ? nodeResourceGroupName : null
     
     // Enable features needed for SRE Agent
     oidcIssuerProfile: {

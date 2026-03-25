@@ -12,7 +12,13 @@
     - Key Vault access roles
 
 .PARAMETER ResourceGroupName
-    The resource group containing the deployed resources
+    The infra resource group containing AKS, ACR, Key Vault, etc.
+
+.PARAMETER MonitorResourceGroupName
+    The monitor resource group containing Log Analytics, App Insights, Grafana, etc.
+
+.PARAMETER SreResourceGroupName
+    The SRE resource group containing the SRE Agent.
 
 .PARAMETER SreAgentPrincipalId
     Object ID of the SRE Agent managed identity (if already created)
@@ -21,7 +27,7 @@
     Object ID of the current user for admin access
 
 .EXAMPLE
-    .\configure-rbac.ps1 -ResourceGroupName "rg-srelab-eastus2"
+    .\configure-rbac.ps1 -ResourceGroupName "rg-srelab-centralus" -MonitorResourceGroupName "rg-srelab-mon-centralus" -SreResourceGroupName "rg-srelab-sre-eastus2"
 
 .NOTES
     This script is idempotent - safe to run multiple times.
@@ -31,6 +37,12 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$ResourceGroupName,
+
+    [Parameter()]
+    [string]$MonitorResourceGroupName,
+
+    [Parameter()]
+    [string]$SreResourceGroupName,
 
     [Parameter()]
     [string]$SreAgentPrincipalId,
@@ -173,13 +185,23 @@ if ($keyVault -and $CurrentUserPrincipalId) {
 if ($SreAgentPrincipalId) {
     Write-Host "`n  📌 SRE Agent Access:" -ForegroundColor Cyan
     
-    # SRE Agent needs Contributor on the resource group to diagnose AND remediate issues
+    # SRE Agent needs Contributor on the infra resource group
     Set-RoleAssignment `
         -Scope "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroupName" `
         -RoleDefinition "Contributor" `
         -PrincipalId $SreAgentPrincipalId `
         -PrincipalType "ServicePrincipal" `
-        -Description "Contributor for SRE Agent (read/write access to resources)"
+        -Description "Contributor for SRE Agent on infra RG"
+
+    # SRE Agent needs Contributor on the monitor resource group
+    if ($MonitorResourceGroupName) {
+        Set-RoleAssignment `
+            -Scope "/subscriptions/$subscriptionId/resourceGroups/$MonitorResourceGroupName" `
+            -RoleDefinition "Contributor" `
+            -PrincipalId $SreAgentPrincipalId `
+            -PrincipalType "ServicePrincipal" `
+            -Description "Contributor for SRE Agent on monitor RG"
+    }
     
     # Reader on subscription for broader context
     Set-RoleAssignment `
@@ -218,8 +240,9 @@ if ($SreAgentPrincipalId) {
             -Description "AKS Contributor for SRE Agent (scale nodes, update config)"
     }
     
-    # Log Analytics access for querying logs
-    $logAnalytics = az monitor log-analytics workspace list --resource-group $ResourceGroupName --output json 2>$null | ConvertFrom-Json | Select-Object -First 1
+    # Log Analytics access for querying logs (in monitor RG)
+    $monitorRgForLa = if ($MonitorResourceGroupName) { $MonitorResourceGroupName } else { $ResourceGroupName }
+    $logAnalytics = az monitor log-analytics workspace list --resource-group $monitorRgForLa --output json 2>$null | ConvertFrom-Json | Select-Object -First 1
     if ($logAnalytics) {
         Set-RoleAssignment `
             -Scope $logAnalytics.id `
@@ -229,8 +252,8 @@ if ($SreAgentPrincipalId) {
             -Description "Log Analytics Contributor for SRE Agent (query and manage logs)"
     }
 
-    # Application Insights read access for telemetry correlation
-    $appInsights = az resource list --resource-group $ResourceGroupName --resource-type "Microsoft.Insights/components" --output json 2>$null | ConvertFrom-Json | Select-Object -First 1
+    # Application Insights read access for telemetry correlation (in monitor RG)
+    $appInsights = az resource list --resource-group $monitorRgForLa --resource-type "Microsoft.Insights/components" --output json 2>$null | ConvertFrom-Json | Select-Object -First 1
     if ($appInsights) {
         Set-RoleAssignment `
             -Scope $appInsights.id `
@@ -240,8 +263,8 @@ if ($SreAgentPrincipalId) {
             -Description "Monitoring Reader for SRE Agent on Application Insights"
     }
 
-    # Azure Monitor Workspace access for managed Prometheus metrics
-    $azureMonitorWorkspace = az resource list --resource-group $ResourceGroupName --resource-type "Microsoft.Monitor/accounts" --output json 2>$null | ConvertFrom-Json | Select-Object -First 1
+    # Azure Monitor Workspace access for managed Prometheus metrics (in monitor RG)
+    $azureMonitorWorkspace = az resource list --resource-group $monitorRgForLa --resource-type "Microsoft.Monitor/accounts" --output json 2>$null | ConvertFrom-Json | Select-Object -First 1
     if ($azureMonitorWorkspace) {
         Set-RoleAssignment `
             -Scope $azureMonitorWorkspace.id `
@@ -273,8 +296,9 @@ if ($SreAgentPrincipalId) {
     }
 }
 
-# 4. Grafana roles (if Grafana is deployed)
-$grafanaJson = az grafana list --resource-group $ResourceGroupName --output json 2>$null
+# 4. Grafana roles (if Grafana is deployed — in monitor RG)
+$grafanaRg = if ($MonitorResourceGroupName) { $MonitorResourceGroupName } else { $ResourceGroupName }
+$grafanaJson = az grafana list --resource-group $grafanaRg --output json 2>$null
 $grafana = $null
 if ($grafanaJson -and $grafanaJson -match '^\s*\[') {
     try {

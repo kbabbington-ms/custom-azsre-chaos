@@ -20,11 +20,10 @@ param tags object
 @description('AKS cluster ID to monitor')
 param aksClusterId string
 
-var aksClusterName = last(split(aksClusterId, '/'))
+@description('Name of the resource group containing the AKS cluster (for cross-RG reference)')
+param infraResourceGroupName string
 
-resource aksCluster 'Microsoft.ContainerService/managedClusters@2024-02-01' existing = {
-  name: aksClusterName
-}
+var aksClusterName = last(split(aksClusterId, '/'))
 
 // =============================================================================
 // RESOURCES
@@ -88,25 +87,8 @@ resource dataCollectionRule 'Microsoft.Insights/dataCollectionRules@2022-06-01' 
   }
 }
 
-// DCE association - must be named 'configurationAccessEndpoint' per Azure requirements
-resource aksPrometheusDceAssociation 'Microsoft.Insights/dataCollectionRuleAssociations@2022-06-01' = {
-  name: 'configurationAccessEndpoint'
-  scope: aksCluster
-  properties: {
-    description: 'Data collection endpoint association for Prometheus metrics'
-    dataCollectionEndpointId: dataCollectionEndpoint.id
-  }
-}
-
-// DCR association - separate resource with distinct name
-resource aksPrometheusDcrAssociation 'Microsoft.Insights/dataCollectionRuleAssociations@2022-06-01' = {
-  name: '${prometheusName}-dcr-association'
-  scope: aksCluster
-  properties: {
-    description: 'Data collection rule association for Prometheus metrics'
-    dataCollectionRuleId: dataCollectionRule.id
-  }
-}
+// NOTE: DCE/DCR associations are deployed via prometheus-associations.bicep
+// in the infra RG where the AKS cluster resides (cross-RG scope constraint).
 
 // Azure Managed Grafana
 resource grafana 'Microsoft.Dashboard/grafana@2023-09-01' = {
@@ -158,5 +140,3 @@ output grafanaEndpoint string = grafana.properties.endpoint
 output azureMonitorWorkspaceId string = azureMonitorWorkspace.id
 output dataCollectionEndpointId string = dataCollectionEndpoint.id
 output dataCollectionRuleId string = dataCollectionRule.id
-output dataCollectionEndpointAssociationId string = aksPrometheusDceAssociation.id
-output dataCollectionRuleAssociationId string = aksPrometheusDcrAssociation.id

@@ -17,13 +17,34 @@ targetScope = 'subscription'
 @maxLength(10)
 param workloadName string = 'srelab'
 
-@description('Azure region for deployment. Must be a region supporting SRE Agent (East US 2, Sweden Central, Australia East)')
+@description('Azure region for infrastructure deployment')
+@allowed([
+  'centralus'
+  'eastus2'
+  'swedencentral'
+  'australiaeast'
+])
+param location string = 'centralus'
+
+@description('Azure region for SRE Agent resource (must be a supported region: eastus2, swedencentral, australiaeast)')
 @allowed([
   'eastus2'
   'swedencentral'
   'australiaeast'
 ])
-param location string = 'eastus2'
+param sreAgentLocation string = 'eastus2'
+
+@description('Name of the resource group for infrastructure and chaos resources')
+param infraResourceGroupName string
+
+@description('Name of the resource group for monitoring resources')
+param monitorResourceGroupName string
+
+@description('Name of the resource group for SRE Agent resources')
+param sreResourceGroupName string
+
+@description('Optional custom name for the AKS node resource group (MC_ group). Leave empty for Azure default naming.')
+param nodeResourceGroupName string = ''
 
 @description('Deploy full observability stack (Managed Grafana, Prometheus)')
 param deployObservability bool = true
@@ -34,12 +55,21 @@ param deployAlerts bool = false
 @description('Deploy Azure SRE Agent for AI-powered diagnostics and remediation')
 param deploySreAgent bool = true
 
+@description('Deploy Azure Chaos Studio experiments for automated fault injection')
+param deployChaosStudio bool = true
+
 @description('Deploy default Action Group for alert notifications and incident routing')
 param deployActionGroup bool = false
 
 @description('Action Group short name (max 12 characters)')
 @maxLength(12)
 param actionGroupShortName string = 'srelabops'
+
+@description('Email recipients for action group notifications')
+param actionGroupEmailReceivers array = []
+
+@description('SMS recipients for action group notifications')
+param actionGroupSmsReceivers array = []
 
 @secure()
 @description('Optional webhook/Logic App callback URL for default Action Group incident routing')
@@ -57,8 +87,10 @@ param kubernetesVersion string = '1.32'
   'Standard_D4s_v5'
   'Standard_D2as_v5'
   'Standard_D4as_v5'
+  'Standard_D2s_v6'
+  'Standard_D4s_v6'
 ])
-param systemNodeVmSize string = 'Standard_D2s_v5'
+param systemNodeVmSize string = 'Standard_D2s_v6'
 
 @description('AKS user node pool VM size for workloads')
 @allowed([
@@ -66,8 +98,10 @@ param systemNodeVmSize string = 'Standard_D2s_v5'
   'Standard_D4s_v5'
   'Standard_D2as_v5'
   'Standard_D4as_v5'
+  'Standard_D2s_v6'
+  'Standard_D4s_v6'
 ])
-param userNodeVmSize string = 'Standard_D2s_v5'
+param userNodeVmSize string = 'Standard_D2s_v6'
 
 @description('System node pool node count')
 @minValue(1)
@@ -81,18 +115,23 @@ param userNodeCount int = 3
 
 @description('Tags to apply to all resources')
 param tags object = {
-  workload: 'sre-agent-demo'
-  environment: 'sandbox'
-  managedBy: 'bicep'
-  purpose: 'demonstration'
+  LifecycleCheck: ''
+  CreatedDate: '3/23/2026'
+  RGMonthlyCost: '1000'
+  Industry: 'All'
+  DeploymentProgress: ''
+  Owner: ''
+  CreatedBy: ''
+  Environment: 'Demo'
+  Partner: 'NA'
+  DeploymentStatus: ''
 }
 
 // =============================================================================
 // VARIABLES
 // =============================================================================
 
-var resourceGroupName = 'rg-${workloadName}-${location}'
-var uniqueSuffix = uniqueString(subscription().subscriptionId, resourceGroupName)
+var uniqueSuffix = uniqueString(subscription().subscriptionId, infraResourceGroupName)
 
 // Naming convention for resources
 var names = {
@@ -106,14 +145,27 @@ var names = {
   managedIdentity: 'id-${workloadName}'
   vnet: 'vnet-${workloadName}'
   sreAgent: 'sre-${workloadName}'
+  dashboard: 'dash-${workloadName}'
 }
 
 // =============================================================================
-// RESOURCE GROUP
+// RESOURCE GROUPS (created by the deployment)
 // =============================================================================
 
-resource resourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' = {
-  name: resourceGroupName
+resource infraRg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
+  name: infraResourceGroupName
+  location: location
+  tags: tags
+}
+
+resource monitorRg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
+  name: monitorResourceGroupName
+  location: location
+  tags: tags
+}
+
+resource sreRg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
+  name: sreResourceGroupName
   location: location
   tags: tags
 }
@@ -124,7 +176,7 @@ resource resourceGroup 'Microsoft.Resources/resourceGroups@2024-03-01' = {
 
 // Log Analytics Workspace (required for AKS monitoring and SRE Agent)
 module logAnalytics 'modules/log-analytics.bicep' = {
-  scope: resourceGroup
+  scope: monitorRg
   name: 'deploy-log-analytics'
   params: {
     name: names.logAnalytics
@@ -136,7 +188,7 @@ module logAnalytics 'modules/log-analytics.bicep' = {
 
 // Application Insights (for application-level telemetry)
 module appInsights 'modules/app-insights.bicep' = {
-  scope: resourceGroup
+  scope: monitorRg
   name: 'deploy-app-insights'
   params: {
     name: names.appInsights
@@ -148,7 +200,7 @@ module appInsights 'modules/app-insights.bicep' = {
 
 // Virtual Network for AKS
 module network 'modules/network.bicep' = {
-  scope: resourceGroup
+  scope: infraRg
   name: 'deploy-network'
   params: {
     vnetName: names.vnet
@@ -162,7 +214,7 @@ module network 'modules/network.bicep' = {
 
 // Azure Container Registry
 module containerRegistry 'modules/container-registry.bicep' = {
-  scope: resourceGroup
+  scope: infraRg
   name: 'deploy-acr'
   params: {
     name: names.acr
@@ -174,7 +226,7 @@ module containerRegistry 'modules/container-registry.bicep' = {
 
 // Azure Kubernetes Service
 module aks 'modules/aks.bicep' = {
-  scope: resourceGroup
+  scope: infraRg
   name: 'deploy-aks'
   params: {
     name: names.aks
@@ -188,12 +240,13 @@ module aks 'modules/aks.bicep' = {
     vnetSubnetId: network.outputs.aksSubnetId
     logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
     acrId: containerRegistry.outputs.acrId
+    nodeResourceGroupName: nodeResourceGroupName
   }
 }
 
 // Key Vault for secrets management
 module keyVault 'modules/key-vault.bicep' = {
-  scope: resourceGroup
+  scope: infraRg
   name: 'deploy-keyvault'
   params: {
     name: names.keyVault
@@ -203,13 +256,13 @@ module keyVault 'modules/key-vault.bicep' = {
   }
 }
 
-// Azure SRE Agent (optional)
+// Azure SRE Agent (optional) — deployed to SRE RG with its own supported region
 module sreAgent 'modules/sre-agent.bicep' = if (deploySreAgent) {
-  scope: resourceGroup
+  scope: sreRg
   name: 'deploy-sre-agent'
   params: {
     agentName: names.sreAgent
-    location: location
+    location: sreAgentLocation
     tags: tags
     accessLevel: 'High'
     appInsightsAppId: appInsights.outputs.appId
@@ -220,7 +273,7 @@ module sreAgent 'modules/sre-agent.bicep' = if (deploySreAgent) {
 
 // Observability Stack - Managed Grafana and Prometheus (optional)
 module observability 'modules/observability.bicep' = if (deployObservability) {
-  scope: resourceGroup
+  scope: monitorRg
   name: 'deploy-observability'
   params: {
     grafanaName: names.grafana
@@ -228,17 +281,70 @@ module observability 'modules/observability.bicep' = if (deployObservability) {
     location: location
     tags: tags
     aksClusterId: aks.outputs.aksId
+    infraResourceGroupName: infraResourceGroupName
   }
 }
 
+// Prometheus DCE/DCR associations — must deploy to infra RG where AKS resides
+module prometheusAssociations 'modules/prometheus-associations.bicep' = if (deployObservability) {
+  scope: infraRg
+  name: 'deploy-prometheus-associations'
+  params: {
+    aksClusterName: names.aks
+    dataCollectionEndpointId: observability!.outputs.dataCollectionEndpointId
+    dataCollectionRuleId: observability!.outputs.dataCollectionRuleId
+    prometheusName: names.prometheus
+  }
+  dependsOn: [
+    aks
+    observability
+  ]
+}
+
+// Operations Dashboard
+module dashboard 'modules/dashboard.bicep' = {
+  scope: monitorRg
+  name: 'deploy-dashboard'
+  params: {
+    name: names.dashboard
+    location: location
+    tags: tags
+    aksClusterId: aks.outputs.aksId
+    logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
+    appInsightsId: appInsights.outputs.appInsightsId
+    keyVaultId: keyVault.outputs.keyVaultId
+    acrId: containerRegistry.outputs.acrId
+    subscriptionId: subscription().subscriptionId
+    resourceGroupName: infraResourceGroupName
+    grafanaDashboardUrl: deployObservability ? observability!.outputs.grafanaEndpoint : ''
+  }
+}
+
+// Chaos Studio - Automated fault injection experiments
+module chaosStudio 'modules/chaos-studio.bicep' = if (deployChaosStudio) {
+  scope: infraRg
+  name: 'deploy-chaos-studio'
+  params: {
+    location: location
+    tags: tags
+    aksClusterName: names.aks
+    namePrefix: 'chaos-${workloadName}'
+  }
+  dependsOn: [
+    aks
+  ]
+}
+
 module defaultActionGroup 'modules/action-group.bicep' = if (deployActionGroup) {
-  scope: resourceGroup
+  scope: monitorRg
   name: 'deploy-default-action-group'
   params: {
     name: 'ag-${workloadName}'
     location: location
     tags: tags
     shortName: actionGroupShortName
+    emailReceivers: actionGroupEmailReceivers
+    smsReceivers: actionGroupSmsReceivers
     webhookServiceUri: incidentWebhookServiceUri
   }
 }
@@ -248,7 +354,7 @@ var effectiveAlertActionGroupIds = deployActionGroup
   : alertActionGroupIds
 
 module alerts 'modules/alerts.bicep' = if (deployAlerts) {
-  scope: resourceGroup
+  scope: monitorRg
   name: 'deploy-alerts'
   params: {
     namePrefix: 'alert-${workloadName}'
@@ -264,9 +370,12 @@ module alerts 'modules/alerts.bicep' = if (deployAlerts) {
 // OUTPUTS
 // =============================================================================
 
-output resourceGroupName string = resourceGroup.name
+output infraResourceGroupName string = infraRg.name
+output monitorResourceGroupName string = monitorRg.name
+output sreResourceGroupName string = sreRg.name
 output aksClusterName string = aks.outputs.aksName
 output aksClusterFqdn string = aks.outputs.aksFqdn
+output aksNodeResourceGroup string = aks.outputs.aksNodeResourceGroup
 output acrLoginServer string = containerRegistry.outputs.loginServer
 output logAnalyticsWorkspaceId string = logAnalytics.outputs.workspaceId
 output appInsightsId string = appInsights.outputs.appInsightsId
@@ -279,7 +388,7 @@ output prometheusDataCollectionEndpointId string = deployObservability
   : ''
 output prometheusDataCollectionRuleId string = deployObservability ? observability!.outputs.dataCollectionRuleId : ''
 output prometheusDcrAssociationId string = deployObservability
-  ? observability!.outputs.dataCollectionRuleAssociationId
+  ? prometheusAssociations!.outputs.dcrAssociationId
   : ''
 output defaultActionGroupId string = deployActionGroup ? defaultActionGroup!.outputs.actionGroupId : ''
 output defaultActionGroupHasWebhook bool = deployActionGroup ? defaultActionGroup!.outputs.hasWebhookReceiver : false
@@ -287,8 +396,13 @@ output podRestartAlertId string = deployAlerts ? alerts!.outputs.podRestartAlert
 output http5xxAlertId string = deployAlerts ? alerts!.outputs.http5xxAlertId : ''
 output podFailureAlertId string = deployAlerts ? alerts!.outputs.podFailureAlertId : ''
 output crashLoopOomAlertId string = deployAlerts ? alerts!.outputs.crashLoopOomAlertId : ''
+output highCpuAlertId string = deployAlerts ? alerts!.outputs.highCpuAlertId : ''
+output probeFailureAlertId string = deployAlerts ? alerts!.outputs.probeFailureAlertId : ''
+output networkErrorAlertId string = deployAlerts ? alerts!.outputs.networkErrorAlertId : ''
 output sreAgentId string = deploySreAgent ? sreAgent!.outputs.agentId : ''
 output sreAgentPortalUrl string = deploySreAgent ? sreAgent!.outputs.agentPortalUrl : ''
 output sreAgentName string = deploySreAgent ? sreAgent!.outputs.agentName : ''
 output sreAgentManagedIdentityId string = deploySreAgent ? sreAgent!.outputs.managedIdentityId : ''
 output sreAgentManagedIdentityPrincipalId string = deploySreAgent ? sreAgent!.outputs.managedIdentityPrincipalId : ''
+output dashboardId string = dashboard.outputs.dashboardId
+output chaosExperimentNames object = deployChaosStudio ? chaosStudio!.outputs.experimentNames : {}

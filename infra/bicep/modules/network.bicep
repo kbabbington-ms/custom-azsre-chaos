@@ -28,6 +28,41 @@ param servicesSubnetPrefix string = '10.0.4.0/24'
 // RESOURCES
 // =============================================================================
 
+// NSG for AKS subnet - required by Azure Policy
+// Allows HTTP inbound for Kubernetes LoadBalancer services (store-front, store-admin)
+resource aksNsg 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
+  name: '${vnetName}-snet-aks-nsg'
+  location: location
+  tags: tags
+  properties: {
+    securityRules: [
+      {
+        name: 'AllowHTTPInbound'
+        properties: {
+          priority: 100
+          direction: 'Inbound'
+          access: 'Allow'
+          protocol: 'Tcp'
+          sourceAddressPrefix: 'Internet'
+          sourcePortRange: '*'
+          destinationAddressPrefix: '*'
+          destinationPortRange: '80'
+        }
+      }
+    ]
+  }
+}
+
+// NSG for services subnet - required by Azure Policy
+resource servicesNsg 'Microsoft.Network/networkSecurityGroups@2024-01-01' = {
+  name: '${vnetName}-snet-services-nsg'
+  location: location
+  tags: tags
+  properties: {
+    securityRules: []
+  }
+}
+
 resource vnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
   name: vnetName
   location: location
@@ -45,6 +80,9 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
           addressPrefix: aksSubnetPrefix
           privateEndpointNetworkPolicies: 'Disabled'
           privateLinkServiceNetworkPolicies: 'Enabled'
+          networkSecurityGroup: {
+            id: aksNsg.id
+          }
         }
       }
       {
@@ -53,6 +91,9 @@ resource vnet 'Microsoft.Network/virtualNetworks@2024-01-01' = {
           addressPrefix: servicesSubnetPrefix
           privateEndpointNetworkPolicies: 'Disabled'
           privateLinkServiceNetworkPolicies: 'Enabled'
+          networkSecurityGroup: {
+            id: servicesNsg.id
+          }
         }
       }
     ]

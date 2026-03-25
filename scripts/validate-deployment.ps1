@@ -4,29 +4,38 @@
 
 .DESCRIPTION
     This script checks:
-    - Azure resources are provisioned and healthy
+    - Azure resources are provisioned and healthy across 3 resource groups
     - AKS cluster is reachable
     - All pods in the demo application are running
     - Services have endpoints assigned
     - Basic connectivity tests pass
 
-.PARAMETER ResourceGroupName
-    Name of the resource group containing the deployment
+.PARAMETER InfraResourceGroupName
+    Name of the infra resource group (AKS, ACR, Key Vault, VNet)
+
+.PARAMETER MonitorResourceGroupName
+    Name of the monitor resource group (Log Analytics, App Insights, Grafana)
+
+.PARAMETER SreResourceGroupName
+    Name of the SRE resource group (SRE Agent)
 
 .PARAMETER Detailed
     Show detailed output for each check
 
 .EXAMPLE
-    .\validate-deployment.ps1 -ResourceGroupName "rg-srelab-eastus2"
-
-.EXAMPLE
-    .\validate-deployment.ps1 -ResourceGroupName "rg-srelab-eastus2" -Detailed
+    .\validate-deployment.ps1 -InfraResourceGroupName "rg-srelab-centralus" -MonitorResourceGroupName "rg-srelab-mon-centralus" -SreResourceGroupName "rg-srelab-sre-eastus2"
 #>
 
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [string]$ResourceGroupName,
+    [string]$InfraResourceGroupName,
+
+    [Parameter()]
+    [string]$MonitorResourceGroupName,
+
+    [Parameter()]
+    [string]$SreResourceGroupName,
 
     [Parameter()]
     [switch]$Detailed
@@ -70,28 +79,28 @@ $totalChecks = 0
 $passedChecks = 0
 
 # =============================================================================
-# AZURE RESOURCE CHECKS
+# AZURE RESOURCE CHECKS — INFRA RG
 # =============================================================================
-Write-Section "Azure Resources"
+Write-Section "Infra Resources ($InfraResourceGroupName)"
 
-# Check resource group exists
-$rg = az group show --name $ResourceGroupName --output json 2>$null | ConvertFrom-Json
+# Check infra resource group exists
+$rg = az group show --name $InfraResourceGroupName --output json 2>$null | ConvertFrom-Json
 $totalChecks++
-if (Write-Check "Resource Group exists" ($null -ne $rg) "Location: $($rg.location)") {
+if (Write-Check "Infra Resource Group exists" ($null -ne $rg) "Location: $($rg.location)") {
     $passedChecks++
 }
 
-# Get all resources in RG
-$resources = az resource list --resource-group $ResourceGroupName --output json 2>$null | ConvertFrom-Json
+# Get all resources in infra RG
+$infraResources = az resource list --resource-group $InfraResourceGroupName --output json 2>$null | ConvertFrom-Json
 
 # Check AKS
-$aks = $resources | Where-Object { $_.type -eq "Microsoft.ContainerService/managedClusters" }
+$aks = $infraResources | Where-Object { $_.type -eq "Microsoft.ContainerService/managedClusters" }
 $totalChecks++
 if (Write-Check "AKS Cluster exists" ($null -ne $aks) $aks.name) {
     $passedChecks++
     
     # Get AKS details
-    $aksDetails = az aks show --resource-group $ResourceGroupName --name $aks.name --output json 2>$null | ConvertFrom-Json
+    $aksDetails = az aks show --resource-group $InfraResourceGroupName --name $aks.name --output json 2>$null | ConvertFrom-Json
     
     $totalChecks++
     if (Write-Check "AKS Cluster is running" ($aksDetails.provisioningState -eq "Succeeded" -and $aksDetails.powerState.code -eq "Running") "State: $($aksDetails.powerState.code)") {
@@ -110,35 +119,37 @@ if (Write-Check "AKS Cluster exists" ($null -ne $aks) $aks.name) {
 }
 
 # Check Container Registry
-$acr = $resources | Where-Object { $_.type -eq "Microsoft.ContainerRegistry/registries" }
+$acr = $infraResources | Where-Object { $_.type -eq "Microsoft.ContainerRegistry/registries" }
 $totalChecks++
 if (Write-Check "Container Registry exists" ($null -ne $acr) $acr.name) {
     $passedChecks++
 }
 
-# Check Log Analytics
-$la = $resources | Where-Object { $_.type -eq "Microsoft.OperationalInsights/workspaces" }
+# Check Log Analytics (in monitor RG)
+$monitorRgForValidation = if ($MonitorResourceGroupName) { $MonitorResourceGroupName } else { $InfraResourceGroupName }
+$monitorResources = az resource list --resource-group $monitorRgForValidation --output json 2>$null | ConvertFrom-Json
+$la = $monitorResources | Where-Object { $_.type -eq "Microsoft.OperationalInsights/workspaces" }
 $totalChecks++
 if (Write-Check "Log Analytics Workspace exists" ($null -ne $la) $la.name) {
     $passedChecks++
 }
 
 # Check App Insights
-$ai = $resources | Where-Object { $_.type -eq "Microsoft.Insights/components" }
+$ai = $monitorResources | Where-Object { $_.type -eq "Microsoft.Insights/components" }
 $totalChecks++
 if (Write-Check "Application Insights exists" ($null -ne $ai) $ai.name) {
     $passedChecks++
 }
 
 # Check Key Vault
-$kv = $resources | Where-Object { $_.type -eq "Microsoft.KeyVault/vaults" }
+$kv = $infraResources | Where-Object { $_.type -eq "Microsoft.KeyVault/vaults" }
 $totalChecks++
 if (Write-Check "Key Vault exists" ($null -ne $kv) $kv.name) {
     $passedChecks++
 }
 
-# Check Grafana (optional)
-$grafana = $resources | Where-Object { $_.type -eq "Microsoft.Dashboard/grafana" }
+# Check Grafana (optional, in monitor RG)
+$grafana = $monitorResources | Where-Object { $_.type -eq "Microsoft.Dashboard/grafana" }
 if ($grafana) {
     $totalChecks++
     if (Write-Check "Managed Grafana exists" $true $grafana.name) {
@@ -154,7 +165,7 @@ Write-Section "Kubernetes Connectivity"
 # Get AKS credentials if needed
 if ($aksName) {
     Write-Host "  Connecting to AKS cluster..." -ForegroundColor Gray
-    az aks get-credentials --resource-group $ResourceGroupName --name $aksName --overwrite-existing 2>$null
+    az aks get-credentials --resource-group $InfraResourceGroupName --name $aksName --overwrite-existing 2>$null
 }
 
 # Test kubectl connectivity

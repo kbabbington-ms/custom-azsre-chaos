@@ -1,0 +1,203 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "sre-demo-logs",
+    "title": "SRE Demo Lab - Logs & Alerts",
+    "tags": ["sre", "logs", "alerts", "pets"],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "1m",
+    "time": { "from": "now-1h", "to": "now" },
+    "panels": [
+      {
+        "type": "row",
+        "title": "Active Alerts & Events",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+        "collapsed": false,
+        "id": 1
+      },
+      {
+        "type": "table",
+        "title": "Failure Events (pets namespace)",
+        "gridPos": { "h": 9, "w": 12, "x": 0, "y": 1 },
+        "id": 2,
+        "datasource": { "type": "grafana-azure-monitor-datasource", "uid": "azure-monitor-oob" },
+        "targets": [
+          {
+            "azureMonitor": {
+              "resources": [],
+              "timeGrain": ""
+            },
+            "azureLogAnalytics": {
+              "query": "KubeEvents\n| where Namespace == \"pets\"\n| where Reason in (\"BackOff\", \"Unhealthy\", \"Failed\", \"FailedScheduling\", \"OOMKilling\", \"OOMKilled\")\n| project TimeGenerated, Reason, Name, Message, Computer\n| order by TimeGenerated desc\n| take 100",
+              "resultFormat": "table"
+            },
+            "queryType": "Azure Log Analytics",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "type": "table",
+        "title": "Non-Running Pods",
+        "gridPos": { "h": 9, "w": 12, "x": 12, "y": 1 },
+        "id": 3,
+        "datasource": { "type": "grafana-azure-monitor-datasource", "uid": "azure-monitor-oob" },
+        "targets": [
+          {
+            "azureLogAnalytics": {
+              "query": "KubePodInventory\n| where Namespace == \"pets\"\n| where PodStatus != \"Running\" and PodStatus != \"Succeeded\"\n| project TimeGenerated, Name, PodStatus, ContainerStatus, Computer\n| order by TimeGenerated desc\n| take 100",
+              "resultFormat": "table"
+            },
+            "queryType": "Azure Log Analytics",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "type": "row",
+        "title": "Container Insights",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 10 },
+        "collapsed": false,
+        "id": 10
+      },
+      {
+        "type": "timeseries",
+        "title": "Pod Restart Trend (5m buckets)",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 11 },
+        "id": 11,
+        "datasource": { "type": "grafana-azure-monitor-datasource", "uid": "azure-monitor-oob" },
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": { "lineWidth": 2, "fillOpacity": 15, "drawStyle": "bars" },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "desc" },
+          "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum"] }
+        },
+        "targets": [
+          {
+            "azureLogAnalytics": {
+              "query": "KubePodInventory\n| where Namespace == \"pets\"\n| where ContainerRestartCount > 0\n| summarize Restarts=sum(ContainerRestartCount) by Name, bin(TimeGenerated, 5m)\n| order by TimeGenerated asc",
+              "resultFormat": "time_series"
+            },
+            "queryType": "Azure Log Analytics",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "type": "timeseries",
+        "title": "Warning Events Over Time",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 11 },
+        "id": 12,
+        "datasource": { "type": "grafana-azure-monitor-datasource", "uid": "azure-monitor-oob" },
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": { "lineWidth": 2, "fillOpacity": 15, "drawStyle": "bars" },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "tooltip": { "mode": "multi", "sort": "desc" },
+          "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum"] }
+        },
+        "targets": [
+          {
+            "azureLogAnalytics": {
+              "query": "KubeEvents\n| where Namespace == \"pets\"\n| where Type == \"Warning\"\n| summarize Count=count() by Reason, bin(TimeGenerated, 5m)\n| order by TimeGenerated asc",
+              "resultFormat": "time_series"
+            },
+            "queryType": "Azure Log Analytics",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "type": "row",
+        "title": "Resource Utilization - Container Level",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 19 },
+        "collapsed": false,
+        "id": 20
+      },
+      {
+        "type": "table",
+        "title": "Top CPU Consumers (pets)",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+        "id": 21,
+        "datasource": { "type": "grafana-azure-monitor-datasource", "uid": "azure-monitor-oob" },
+        "targets": [
+          {
+            "azureLogAnalytics": {
+              "query": "Perf\n| where ObjectName == \"K8SContainer\"\n| where CounterName == \"cpuUsageNanoCores\"\n| where InstanceName contains \"pets\"\n| summarize AvgCPU=avg(CounterValue), MaxCPU=max(CounterValue) by InstanceName\n| extend AvgCPU_mCores = round(AvgCPU / 1000000, 2), MaxCPU_mCores = round(MaxCPU / 1000000, 2)\n| project Container=InstanceName, AvgCPU_mCores, MaxCPU_mCores\n| order by MaxCPU_mCores desc\n| take 20",
+              "resultFormat": "table"
+            },
+            "queryType": "Azure Log Analytics",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "type": "table",
+        "title": "Top Memory Consumers (pets)",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+        "id": 22,
+        "datasource": { "type": "grafana-azure-monitor-datasource", "uid": "azure-monitor-oob" },
+        "targets": [
+          {
+            "azureLogAnalytics": {
+              "query": "Perf\n| where ObjectName == \"K8SContainer\"\n| where CounterName == \"memoryWorkingSetBytes\"\n| where InstanceName contains \"pets\"\n| summarize AvgMem=avg(CounterValue), MaxMem=max(CounterValue) by InstanceName\n| extend AvgMem_MB = round(AvgMem / 1048576, 2), MaxMem_MB = round(MaxMem / 1048576, 2)\n| project Container=InstanceName, AvgMem_MB, MaxMem_MB\n| order by MaxMem_MB desc\n| take 20",
+              "resultFormat": "table"
+            },
+            "queryType": "Azure Log Analytics",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "type": "row",
+        "title": "Chaos Experiment Correlation",
+        "gridPos": { "h": 1, "w": 24, "x": 0, "y": 28 },
+        "collapsed": false,
+        "id": 30
+      },
+      {
+        "type": "table",
+        "title": "Recent OOMKilled & CrashLoop Events",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 29 },
+        "id": 31,
+        "datasource": { "type": "grafana-azure-monitor-datasource", "uid": "azure-monitor-oob" },
+        "targets": [
+          {
+            "azureLogAnalytics": {
+              "query": "KubeEvents\n| where Namespace == \"pets\"\n| where Reason in (\"OOMKilling\", \"OOMKilled\", \"BackOff\", \"Killing\", \"Unhealthy\")\n| project TimeGenerated, Reason, Name, Message\n| order by TimeGenerated desc\n| take 50",
+              "resultFormat": "table"
+            },
+            "queryType": "Azure Log Analytics",
+            "refId": "A"
+          }
+        ]
+      }
+    ],
+    "templating": { "list": [] },
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    }
+  },
+  "overwrite": true
+}

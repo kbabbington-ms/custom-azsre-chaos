@@ -29,6 +29,8 @@ azureconfig.json
 !settings.json
 !extensions.json
 !**/bicepconfig.json
+!grafana/sre-demo-dashboard.json
+!grafana/sre-demo-logs-dashboard.json
 
 # Bicep lock files
 .bicep/

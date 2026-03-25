@@ -9,11 +9,21 @@
     It uses device code authentication by default for dev container support.
 
 .PARAMETER Location
-    Azure region for deployment. Must be an SRE Agent supported region.
-    Valid values: eastus2, swedencentral, australiaeast
+    Azure region for infrastructure deployment.
+    Valid values: centralus, eastus2, swedencentral, australiaeast
+
+.PARAMETER SreAgentLocation
+    Azure region for SRE Agent resource (must be a supported region).
+    Default: eastus2
+
+.PARAMETER Environment
+    Environment prefix for RG naming convention. Default: EXP
+
+.PARAMETER ProjectName
+    Project name for RG naming convention. Default: SREDEMO
 
 .PARAMETER WorkloadName
-    Name prefix for resources. Default: srelab
+    Name prefix for individual resources (AKS, ACR, etc.). Default: srelab
 
 .PARAMETER SkipRbac
     Skip RBAC role assignments (useful if subscription policies block them)
@@ -21,14 +31,32 @@
 .PARAMETER SkipSreAgent
     Skip Azure SRE Agent deployment and deploy only the core lab infrastructure
 
+.PARAMETER InfraResourceGroupName
+    Override the infra resource group name.
+    Default: {ENV}-{PROJECT}-AKS-{REGION}-RG (e.g. EXP-SREDEMO-AKS-CUS-RG)
+
+.PARAMETER MonitorResourceGroupName
+    Override the monitor resource group name.
+    Default: {ENV}-{PROJECT}-MON-{REGION}-RG (e.g. EXP-SREDEMO-MON-CUS-RG)
+
+.PARAMETER SreResourceGroupName
+    Override the SRE resource group name.
+    Default: {ENV}-{PROJECT}-SRE-{SRE_REGION}-RG (e.g. EXP-SREDEMO-SRE-EAUS2-RG)
+
+.PARAMETER NodeResourceGroupName
+    Override the AKS node resource group name (MC_ group). Leave empty for Azure default naming.
+
 .PARAMETER WhatIf
     Show what would be deployed without making changes
 
 .EXAMPLE
-    .\deploy.ps1 -Location eastus2
+    .\deploy.ps1 -Location centralus
 
 .EXAMPLE
-    .\deploy.ps1 -Location eastus2 -WhatIf
+    .\deploy.ps1 -Location centralus -Environment DEV -ProjectName MYPROJECT
+
+.EXAMPLE
+    .\deploy.ps1 -Location centralus -WhatIf
 
 .NOTES
     Author: Azure SRE Agent Demo Lab
@@ -38,8 +66,18 @@
 [CmdletBinding()]
 param(
     [Parameter()]
+    [ValidateSet('centralus', 'eastus2', 'swedencentral', 'australiaeast')]
+    [string]$Location = 'centralus',
+
+    [Parameter()]
     [ValidateSet('eastus2', 'swedencentral', 'australiaeast')]
-    [string]$Location = 'eastus2',
+    [string]$SreAgentLocation = 'eastus2',
+
+    [Parameter()]
+    [string]$Environment = 'EXP',
+
+    [Parameter()]
+    [string]$ProjectName = 'SREDEMO',
 
     [Parameter()]
     [ValidateLength(3, 10)]
@@ -50,6 +88,18 @@ param(
 
     [Parameter()]
     [switch]$SkipSreAgent,
+
+    [Parameter(HelpMessage = 'Override the infra resource group name')]
+    [string]$InfraResourceGroupName,
+
+    [Parameter(HelpMessage = 'Override the monitor resource group name')]
+    [string]$MonitorResourceGroupName,
+
+    [Parameter(HelpMessage = 'Override the SRE resource group name')]
+    [string]$SreResourceGroupName,
+
+    [Parameter(HelpMessage = 'Override the AKS node resource group name (MC_ group). Leave empty for Azure default naming.')]
+    [string]$NodeResourceGroupName,
 
     [Parameter()]
     [switch]$WhatIf,
@@ -499,8 +549,24 @@ else {
     Write-Host "  ✅ Confirmation skipped (-Yes)" -ForegroundColor Gray
 }
 
-# Set variables
-$resourceGroupName = "rg-$WorkloadName-$Location"
+# Region abbreviation mapping for RG naming convention
+$regionAbbreviations = @{
+    'centralus'      = 'CUS'
+    'eastus2'        = 'EAUS2'
+    'swedencentral'  = 'SWEC'
+    'australiaeast'  = 'AUCE'
+}
+$regionAbbr = $regionAbbreviations[$Location]
+$sreRegionAbbr = $regionAbbreviations[$SreAgentLocation]
+
+# Set variables — use explicit overrides if provided, otherwise derive from naming convention
+# Format: {ENV}-{PROJECT}-{WORKLOAD}-{REGION}-RG (uppercase)
+$envUpper = $Environment.ToUpper()
+$projUpper = $ProjectName.ToUpper()
+$infraResourceGroupName = if ($InfraResourceGroupName) { $InfraResourceGroupName } else { "$envUpper-$projUpper-AKS-$regionAbbr-RG" }
+$monitorResourceGroupName = if ($MonitorResourceGroupName) { $MonitorResourceGroupName } else { "$envUpper-$projUpper-MON-$regionAbbr-RG" }
+$sreResourceGroupName = if ($SreResourceGroupName) { $SreResourceGroupName } else { "$envUpper-$projUpper-SRE-$sreRegionAbbr-RG" }
+$nodeResourceGroupName = if ($NodeResourceGroupName) { $NodeResourceGroupName } else { '' }
 $deploymentName = "sre-demo-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
 $bicepFile = Join-Path $PSScriptRoot "..\infra\bicep\main.bicep"
 $parametersFile = Join-Path $PSScriptRoot "..\infra\bicep\main.bicepparam"
@@ -508,7 +574,11 @@ $parametersFile = Join-Path $PSScriptRoot "..\infra\bicep\main.bicepparam"
 Write-Host "`n📦 Deployment Configuration:" -ForegroundColor Cyan
 Write-Host "  • Location:        $Location" -ForegroundColor White
 Write-Host "  • Workload Name:   $WorkloadName" -ForegroundColor White
-Write-Host "  • Resource Group:  $resourceGroupName" -ForegroundColor White
+Write-Host "  • Infra RG:        $infraResourceGroupName" -ForegroundColor White
+Write-Host "  • Monitor RG:      $monitorResourceGroupName" -ForegroundColor White
+Write-Host "  • SRE RG:          $sreResourceGroupName" -ForegroundColor White
+Write-Host "  • Node RG:         $(if ($nodeResourceGroupName) { $nodeResourceGroupName } else { '(Azure default)' })" -ForegroundColor White
+Write-Host "  • SRE Agent Loc:   $SreAgentLocation" -ForegroundColor White
 Write-Host "  • Deployment Name: $deploymentName" -ForegroundColor White
 Write-Host "  • SRE Agent:       $(if ($deploySreAgent) { 'Enabled' } else { 'Disabled' })" -ForegroundColor White
 if ($sreAgentSkipReason) {
@@ -523,7 +593,7 @@ if ($WhatIf) {
     $whatIfOutput = az deployment sub what-if `
         --location $Location `
         --template-file $bicepFile `
-        --parameters location=$Location workloadName=$WorkloadName deploySreAgent=$deploySreAgentValue `
+        --parameters location=$Location workloadName=$WorkloadName deploySreAgent=$deploySreAgentValue sreAgentLocation=$SreAgentLocation infraResourceGroupName=$infraResourceGroupName monitorResourceGroupName=$monitorResourceGroupName sreResourceGroupName=$sreResourceGroupName nodeResourceGroupName=$nodeResourceGroupName `
         --name $deploymentName 2>&1 | Out-String
 
     if ($LASTEXITCODE -ne 0) {
@@ -551,7 +621,7 @@ try {
         "az deployment sub create",
         "--location $Location",
         "--template-file `"$bicepFile`"",
-        "--parameters `"$parametersFile`" location=$Location workloadName=$WorkloadName deploySreAgent=$deploySreAgentValue",
+        "--parameters `"$parametersFile`" location=$Location workloadName=$WorkloadName deploySreAgent=$deploySreAgentValue sreAgentLocation=$SreAgentLocation infraResourceGroupName=$infraResourceGroupName monitorResourceGroupName=$monitorResourceGroupName sreResourceGroupName=$sreResourceGroupName nodeResourceGroupName=$nodeResourceGroupName",
         "--name $deploymentName",
         "--only-show-errors",
         "--output json"
@@ -583,10 +653,10 @@ try {
             }
         }
 
-        Write-SubscriptionDeploymentFailureSummary -DeploymentName $deploymentName -ResourceGroupName $resourceGroupName
+        Write-SubscriptionDeploymentFailureSummary -DeploymentName $deploymentName -ResourceGroupName $infraResourceGroupName
 
         if ($attempt -eq 1) {
-            $deletedKeyVaultConflict = Get-DeletedKeyVaultConflict -ResourceGroupName $resourceGroupName
+            $deletedKeyVaultConflict = Get-DeletedKeyVaultConflict -ResourceGroupName $infraResourceGroupName
             if ($deletedKeyVaultConflict) {
                 $resolved = Resolve-DeletedKeyVaultConflict -VaultName $deletedKeyVaultConflict.VaultName -Location $Location
                 if ($resolved) {
@@ -613,7 +683,9 @@ try {
     Write-Host "`n📋 Deployment Outputs:" -ForegroundColor Cyan
     
     $outputs = $deployment.properties.outputs
-    Write-Host "  • Resource Group:   $($outputs.resourceGroupName.value)" -ForegroundColor White
+    Write-Host "  • Infra RG:         $($outputs.infraResourceGroupName.value)" -ForegroundColor White
+    Write-Host "  • Monitor RG:       $($outputs.monitorResourceGroupName.value)" -ForegroundColor White
+    Write-Host "  • SRE RG:           $($outputs.sreResourceGroupName.value)" -ForegroundColor White
     Write-Host "  • AKS Cluster:      $($outputs.aksClusterName.value)" -ForegroundColor White
     Write-Host "  • AKS FQDN:         $($outputs.aksClusterFqdn.value)" -ForegroundColor White
     Write-Host "  • ACR Login Server: $($outputs.acrLoginServer.value)" -ForegroundColor White
@@ -663,7 +735,7 @@ catch {
 # Get AKS credentials
 Write-Host "`n🔑 Getting AKS credentials..." -ForegroundColor Yellow
 az aks get-credentials `
-    --resource-group $resourceGroupName `
+    --resource-group $infraResourceGroupName `
     --name $outputs.aksClusterName.value `
     --overwrite-existing
 
@@ -682,7 +754,9 @@ if (-not $SkipRbac) {
     $rbacScript = Join-Path $PSScriptRoot "configure-rbac.ps1"
     if (Test-Path $rbacScript) {
         $rbacParams = @{
-            ResourceGroupName = $resourceGroupName
+            ResourceGroupName = $infraResourceGroupName
+            MonitorResourceGroupName = $monitorResourceGroupName
+            SreResourceGroupName = $sreResourceGroupName
         }
 
         if ($sreAgentManagedIdentityPrincipalId) {
@@ -753,7 +827,7 @@ Write-Host "`n🔍 Running deployment validation..." -ForegroundColor Yellow
 $validateScript = Join-Path $PSScriptRoot "validate-deployment.ps1"
 
 if (Test-Path $validateScript) {
-    & pwsh -NoLogo -NoProfile -File $validateScript -ResourceGroupName $resourceGroupName
+    & pwsh -NoLogo -NoProfile -File $validateScript -InfraResourceGroupName $infraResourceGroupName -MonitorResourceGroupName $monitorResourceGroupName -SreResourceGroupName $sreResourceGroupName
     if ($LASTEXITCODE -ne 0) {
         Write-Host "  ⚠️  Validation found issues, but the infrastructure deployment completed. Review the validation output above." -ForegroundColor Yellow
     }
