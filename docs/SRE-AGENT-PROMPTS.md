@@ -2,6 +2,8 @@
 
 A comprehensive collection of prompts for Azure SRE Agent, organized by SRE discipline. Use these during demos, day-to-day operations, or to explore what SRE Agent can do.
 
+> **For scenario-specific prompts** tied to Chaos Studio experiments and kubectl scenarios, see [BREAKABLE-SCENARIOS.md](BREAKABLE-SCENARIOS.md) and [PROMPTS-GUIDE.md](PROMPTS-GUIDE.md).
+
 > **Tip:** Start with open-ended prompts and let SRE Agent guide the investigation. Follow up with targeted prompts to drill deeper.
 
 ---

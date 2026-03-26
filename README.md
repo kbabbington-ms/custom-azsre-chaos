@@ -198,6 +198,7 @@ See [docs/COSTS.md](docs/COSTS.md) for detailed breakdown and optimization tips.
 
 ## Documentation
 
+- [Chaos Engineering & SRE Agent Guide](docs/CHAOS-AND-SRE-GUIDE.md) — **Start here** for demos
 - [SRE Agent Setup Guide](docs/SRE-AGENT-SETUP.md)
 - [Breakable Scenarios Guide](docs/BREAKABLE-SCENARIOS.md)
 - [Prompts Guide](docs/PROMPTS-GUIDE.md)

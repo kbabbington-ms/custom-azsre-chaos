@@ -18,7 +18,9 @@ Start here when the cluster is healthy to show SRE Agent's baseline capabilities
 
 ## Per-Scenario Diagnosis Prompts
 
-### OOMKilled (`break-oom`)
+### OOMKilled
+
+**Trigger:** `run-chaos-scenarios.ps1 -Scenario oom-killed -Action start -ResourceGroupName <infraRG>`
 
 | Stage | Prompt |
 |-------|--------|
@@ -28,7 +30,9 @@ Start here when the cluster is healthy to show SRE Agent's baseline capabilities
 | **Remediation** | "What memory limits should I set for order-service?" |
 | **Action** | "Can you increase the memory limit for order-service to 256Mi?" |
 
-### CrashLoopBackOff (`break-crash`)
+### CrashLoopBackOff
+
+**Trigger:** `run-chaos-scenarios.ps1 -Scenario crash-loop -Action start -ResourceGroupName <infraRG>`
 
 | Stage | Prompt |
 |-------|--------|
@@ -38,7 +42,9 @@ Start here when the cluster is healthy to show SRE Agent's baseline capabilities
 | **Remediation** | "What's causing exit code 1 in product-service?" |
 | **Action** | "Restart the product-service deployment" |
 
-### ImagePullBackOff (`break-image`)
+### ImagePullBackOff
+
+**Trigger:** `kubectl apply -f k8s/scenarios/image-pull-backoff.yaml`
 
 | Stage | Prompt |
 |-------|--------|
@@ -47,7 +53,9 @@ Start here when the cluster is healthy to show SRE Agent's baseline capabilities
 | **Specific** | "Is there an issue with the container image for makeline-service?" |
 | **Remediation** | "What image should makeline-service be using?" |
 
-### High CPU (`break-cpu`)
+### High CPU
+
+**Trigger:** `run-chaos-scenarios.ps1 -Scenario high-cpu -Action start -ResourceGroupName <infraRG>`
 
 | Stage | Prompt |
 |-------|--------|
@@ -57,7 +65,9 @@ Start here when the cluster is healthy to show SRE Agent's baseline capabilities
 | **Remediation** | "What should I do about the cpu-stress-test workload?" |
 | **Action** | "Delete the cpu-stress-test deployment" |
 
-### Pending Pods (`break-pending`)
+### Pending Pods
+
+**Trigger:** `kubectl apply -f k8s/scenarios/pending-pods.yaml`
 
 | Stage | Prompt |
 |-------|--------|
@@ -66,7 +76,9 @@ Start here when the cluster is healthy to show SRE Agent's baseline capabilities
 | **Specific** | "Analyze cluster capacity vs. what's being requested" |
 | **Remediation** | "Should I scale the node pool or reduce resource requests?" |
 
-### Probe Failure (`break-probe`)
+### Probe Failure
+
+**Trigger:** `run-chaos-scenarios.ps1 -Scenario probe-failure -Action start -ResourceGroupName <infraRG>`
 
 | Stage | Prompt |
 |-------|--------|
@@ -75,7 +87,9 @@ Start here when the cluster is healthy to show SRE Agent's baseline capabilities
 | **Specific** | "What's wrong with the liveness probe on unhealthy-service?" |
 | **Remediation** | "How should I fix the probe configuration?" |
 
-### Network Policy Block (`break-network`)
+### Network Policy Block
+
+**Trigger:** `kubectl apply -f k8s/scenarios/network-block.yaml`
 
 | Stage | Prompt |
 |-------|--------|
@@ -85,7 +99,9 @@ Start here when the cluster is healthy to show SRE Agent's baseline capabilities
 | **Remediation** | "How do I fix the network connectivity to order-service?" |
 | **Action** | "Delete the deny-order-service network policy" |
 
-### Missing ConfigMap (`break-config`)
+### Missing ConfigMap
+
+**Trigger:** `kubectl apply -f k8s/scenarios/missing-config.yaml`
 
 | Stage | Prompt |
 |-------|--------|
@@ -93,7 +109,9 @@ Start here when the cluster is healthy to show SRE Agent's baseline capabilities
 | **Direct** | "What configuration is missing for misconfigured-service?" |
 | **Specific** | "Check for ConfigMap or Secret reference errors in pets namespace" |
 
-### MongoDB Down (`break-mongodb`)
+### MongoDB Down
+
+**Trigger:** `run-chaos-scenarios.ps1 -Scenario mongodb-down -Action start -ResourceGroupName <infraRG>`
 
 | Stage | Prompt |
 |-------|--------|
@@ -103,7 +121,9 @@ Start here when the cluster is healthy to show SRE Agent's baseline capabilities
 | **Root cause** | "Trace the dependency chain — what broke first?" |
 | **Action** | "Scale the mongodb deployment back to 1 replica" |
 
-### Service Selector Mismatch (`break-service`)
+### Service Selector Mismatch
+
+**Trigger:** `run-chaos-scenarios.ps1 -Scenario service-mismatch -Action start -ResourceGroupName <infraRG>`
 
 | Stage | Prompt |
 |-------|--------|

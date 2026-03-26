@@ -2,21 +2,23 @@
 
 This document provides estimated costs for running the Azure SRE Agent Demo Lab.
 
-> **Note:** Costs are estimates based on US East 2 region pricing as of 2024. Actual costs may vary based on region, usage patterns, and Azure pricing changes.
+> **Note:** Costs are estimates based on Azure pricing as of March 2026. Actual costs may vary based on region, usage patterns, and Azure pricing changes. The default deployment uses Central US.
 
 ## Quick Cost Summary
 
 | Component | Daily Cost | Monthly Cost | Notes |
 |-----------|------------|--------------|-------|
 | **AKS Control Plane** | ~$2.40 | $73 | Standard tier with SLA |
-| **AKS Nodes (System)** | ~$4.70 | ~$140 | 2x Standard_D2s_v5 |
-| **AKS Nodes (User)** | ~$7.00 | ~$210 | 3x Standard_D2s_v5 |
+| **AKS Nodes (System)** | ~$4.70 | ~$140 | 2x Standard_D2s_v6 |
+| **AKS Nodes (User)** | ~$7.00 | ~$210 | 3x Standard_D2s_v6 |
 | **Container Registry** | ~$0.17 | ~$5 | Basic tier |
 | **Log Analytics** | ~$1-2 | ~$30-50 | Based on data ingestion |
 | **Application Insights** | ~$0.30-0.70 | ~$10-20 | Based on data volume |
 | **Managed Grafana** | ~$2.50 | ~$75 | Standard tier |
 | **Azure Monitor (Prometheus)** | ~$0.50 | ~$15 | Based on metrics volume |
 | **Key Vault** | ~$0.10 | ~$3 | Minimal operations |
+| **Chaos Studio** | ~$0.00 | ~$0-5 | Pay-per-experiment-minute |
+| **Portal Dashboard** | ~$0.00 | ~$0 | No additional cost |
 | **SRE Agent** | ~$10-13 | ~$292-400 | Base + execution costs |
 | **Total (without SRE Agent)** | **~$22-28** | **~$650-850** | |
 | **Total (with SRE Agent)** | **~$32-38** | **~$950-1,150** | |
@@ -36,11 +38,11 @@ This document provides estimated costs for running the Azure SRE Agent Demo Lab.
 
 | Node Pool | VM Size | Count | Unit Cost | Monthly Cost |
 |-----------|---------|-------|-----------|--------------|
-| System | Standard_D2s_v5 | 2 | $70.08/month | $140.16 |
-| User | Standard_D2s_v5 | 3 | $70.08/month | $210.24 |
+| System | Standard_D2s_v6 | 2 | ~$70/month | ~$140 |
+| User | Standard_D2s_v6 | 3 | ~$70/month | ~$210 |
 
 **Cost-Saving Options:**
-- Use `Standard_D2as_v5` (AMD) for ~10% savings
+- Use `Standard_D2as_v6` (AMD) for ~10% savings
 - Reduce node count during non-demo hours
 - Use Reserved Instances for 30-55% savings (if running long-term)
 - Use Spot instances for non-critical workloads
@@ -122,13 +124,13 @@ SRE Agent uses Azure AI Units (AAU) billing:
 
 1. **Delete when not in use**
    ```powershell
-   .\scripts\destroy.ps1
+   .\scripts\destroy.ps1 -WorkloadName srelab -Location centralus
    ```
 
 2. **Scale down nodes**
    ```bash
-   az aks nodepool scale --resource-group rg-srelab-eastus2 \
-       --cluster-name aks-srelab-dev --name workload --node-count 1
+   az aks nodepool scale --resource-group <infraRG> \
+       --cluster-name aks-srelab --name workload --node-count 1
    ```
 
 3. **Use spot instances** for user node pool

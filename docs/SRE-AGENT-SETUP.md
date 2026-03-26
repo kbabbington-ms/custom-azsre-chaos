@@ -65,13 +65,16 @@ The SRE Agent needs access to your Azure resources to diagnose and **remediate**
 ### Grant Access to Demo Resources
 
 1. Get the SRE Agent's managed identity Object ID from the portal
-2. Run the RBAC configuration script:
+2. Run the RBAC configuration script across all 3 resource groups:
 
 ```powershell
 .\scripts\configure-rbac.ps1 `
-    -ResourceGroupName "rg-srelab-eastus2" `
-    -SreAgentPrincipalId "<sre-agent-object-id>"
+    -ResourceGroupName "<infraRG>" `
+    -MonitorResourceGroupName "<monitorRG>" `
+    -SreResourceGroupName "<sreRG>"
 ```
+
+> **Important:** The SRE Agent has both a **system-assigned** and **user-assigned** managed identity. The Bicep deployment assigns roles to the user-assigned identity. For incident management features (Azure Monitor integration), the **system-assigned identity** also needs Monitoring Contributor, Reader, and Log Analytics Contributor roles at the subscription or resource group scope. Assign these manually if you see "Connection to Azure Monitor failed" in the SRE Agent portal.
 
 ### Permissions Granted to SRE Agent
 
@@ -250,6 +253,18 @@ SRE Agent billing is based on Azure AI Units (AAU):
 | Execution costs | Variable based on usage |
 
 See [docs/COSTS.md](COSTS.md) for full cost breakdown including AKS and other resources.
+
+## Architecture Note
+
+This lab uses a 3-resource-group architecture:
+
+| Resource Group | Contains | SRE Agent Needs |
+|---------------|----------|----------------|
+| Infra RG | AKS, ACR, Key Vault, VNet, Chaos Studio | Contributor, AKS roles |
+| Monitor RG | Log Analytics, App Insights, Grafana, Prometheus, Alerts, Dashboard | Reader, Log Analytics Contributor, Monitoring Reader |
+| SRE Agent RG | SRE Agent resource | Auto-configured |
+
+The SRE Agent is deployed to its own resource group (typically in East US 2) while the AKS cluster and monitoring stack can be in any supported region.
 
 ## Additional Resources
 
