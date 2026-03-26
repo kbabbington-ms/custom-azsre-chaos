@@ -470,8 +470,13 @@ resource dashboard 'Microsoft.Portal/dashboards@2020-09-01-preview' = {
             metadata: {
               type: 'Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart'
               inputs: [
-                { name: 'resourceTypeMode', isOptional: true }
-                { name: 'ComponentId', isOptional: true, value: logAnalyticsWorkspaceId }
+                { name: 'resourceTypeMode', isOptional: true, value: 'workspace' }
+                { name: 'ComponentId', isOptional: true, value: {
+                  ResourceId: logAnalyticsWorkspaceId
+                }}
+                { name: 'Scope', isOptional: true, value: {
+                  resourceIds: [logAnalyticsWorkspaceId]
+                }}
               ]
               settings: {
                 content: {
@@ -492,8 +497,13 @@ resource dashboard 'Microsoft.Portal/dashboards@2020-09-01-preview' = {
             metadata: {
               type: 'Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart'
               inputs: [
-                { name: 'resourceTypeMode', isOptional: true }
-                { name: 'ComponentId', isOptional: true, value: logAnalyticsWorkspaceId }
+                { name: 'resourceTypeMode', isOptional: true, value: 'workspace' }
+                { name: 'ComponentId', isOptional: true, value: {
+                  ResourceId: logAnalyticsWorkspaceId
+                }}
+                { name: 'Scope', isOptional: true, value: {
+                  resourceIds: [logAnalyticsWorkspaceId]
+                }}
               ]
               settings: {
                 content: {
@@ -533,8 +543,13 @@ resource dashboard 'Microsoft.Portal/dashboards@2020-09-01-preview' = {
             metadata: {
               type: 'Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart'
               inputs: [
-                { name: 'resourceTypeMode', isOptional: true }
-                { name: 'ComponentId', isOptional: true, value: logAnalyticsWorkspaceId }
+                { name: 'resourceTypeMode', isOptional: true, value: 'workspace' }
+                { name: 'ComponentId', isOptional: true, value: {
+                  ResourceId: logAnalyticsWorkspaceId
+                }}
+                { name: 'Scope', isOptional: true, value: {
+                  resourceIds: [logAnalyticsWorkspaceId]
+                }}
               ]
               settings: {
                 content: {
@@ -555,8 +570,13 @@ resource dashboard 'Microsoft.Portal/dashboards@2020-09-01-preview' = {
             metadata: {
               type: 'Extension/Microsoft_OperationsManagementSuite_Workspace/PartType/LogsDashboardPart'
               inputs: [
-                { name: 'resourceTypeMode', isOptional: true }
-                { name: 'ComponentId', isOptional: true, value: logAnalyticsWorkspaceId }
+                { name: 'resourceTypeMode', isOptional: true, value: 'workspace' }
+                { name: 'ComponentId', isOptional: true, value: {
+                  ResourceId: logAnalyticsWorkspaceId
+                }}
+                { name: 'Scope', isOptional: true, value: {
+                  resourceIds: [logAnalyticsWorkspaceId]
+                }}
               ]
               settings: {
                 content: {
