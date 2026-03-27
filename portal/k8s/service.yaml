@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: chaos-portal-api
+  namespace: ops
+  labels:
+    app: chaos-portal-api
+spec:
+  selector:
+    app: chaos-portal-api
+  ports:
+    - port: 3001
+      targetPort: 3001
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chaos-portal-web
+  namespace: ops
+  labels:
+    app: chaos-portal-web
+spec:
+  selector:
+    app: chaos-portal-web
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: LoadBalancer

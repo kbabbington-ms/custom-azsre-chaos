@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chaos-portal-web
+  namespace: ops
+  labels:
+    app: chaos-portal-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chaos-portal-web
+  template:
+    metadata:
+      labels:
+        app: chaos-portal-web
+    spec:
+      nodeSelector:
+        nodepool-type: user
+      containers:
+        - name: web
+          image: "${ACR_NAME}.azurecr.io/chaos-portal-web:latest"
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5

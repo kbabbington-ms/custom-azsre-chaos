@@ -94,6 +94,10 @@ resource sreAgent 'Microsoft.App/agents@2025-05-01-preview' = {
       identity: managedIdentity.id
       mode: 'Review'
     }
+    incidentManagementConfiguration: {
+      type: 'AzMonitor'
+      connectionName: 'azmonitor'
+    }
     logConfiguration: {
       applicationInsightsConfiguration: {
         appId: appInsightsAppId
@@ -127,3 +131,4 @@ output agentId string = sreAgent.id
 output agentPortalUrl string = 'https://portal.azure.com/#view/Microsoft_Azure_PaasServerless/AgentFrameBlade.ReactView/id/${replace(sreAgent.id, '/', '%2F')}'
 output managedIdentityId string = managedIdentity.id
 output managedIdentityPrincipalId string = managedIdentity.properties.principalId
+output systemAssignedPrincipalId string = sreAgent.identity.principalId

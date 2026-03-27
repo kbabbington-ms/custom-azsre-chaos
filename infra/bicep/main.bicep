@@ -404,5 +404,6 @@ output sreAgentPortalUrl string = deploySreAgent ? sreAgent!.outputs.agentPortal
 output sreAgentName string = deploySreAgent ? sreAgent!.outputs.agentName : ''
 output sreAgentManagedIdentityId string = deploySreAgent ? sreAgent!.outputs.managedIdentityId : ''
 output sreAgentManagedIdentityPrincipalId string = deploySreAgent ? sreAgent!.outputs.managedIdentityPrincipalId : ''
+output sreAgentSystemPrincipalId string = deploySreAgent ? sreAgent!.outputs.systemAssignedPrincipalId : ''
 output dashboardId string = dashboard.outputs.dashboardId
 output chaosExperimentNames object = deployChaosStudio ? chaosStudio!.outputs.experimentNames : {}

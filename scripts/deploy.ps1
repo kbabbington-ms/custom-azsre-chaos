@@ -89,6 +89,9 @@ param(
     [Parameter()]
     [switch]$SkipSreAgent,
 
+    [Parameter()]
+    [switch]$DeployPortal,
+
     [Parameter(HelpMessage = 'Override the infra resource group name')]
     [string]$InfraResourceGroupName,
 
@@ -746,6 +749,11 @@ if ($outputs.PSObject.Properties.Name -contains 'sreAgentManagedIdentityPrincipa
     $sreAgentManagedIdentityPrincipalId = $outputs.sreAgentManagedIdentityPrincipalId.value
 }
 
+$sreAgentSystemPrincipalId = ''
+if ($outputs.PSObject.Properties.Name -contains 'sreAgentSystemPrincipalId') {
+    $sreAgentSystemPrincipalId = $outputs.sreAgentSystemPrincipalId.value
+}
+
 # Apply RBAC if not skipped
 if (-not $SkipRbac) {
     Write-Host "`n🔐 Applying RBAC assignments..." -ForegroundColor Yellow
@@ -765,6 +773,14 @@ if (-not $SkipRbac) {
         }
         elseif ($deploySreAgent) {
             Write-Host "  ⚠️  SRE Agent principal ID was not returned by the deployment. Agent-specific RBAC was skipped." -ForegroundColor Yellow
+        }
+
+        if ($sreAgentSystemPrincipalId) {
+            $rbacParams.SreAgentSystemPrincipalId = $sreAgentSystemPrincipalId
+            Write-Host "  ✅ Auto-detected SRE Agent system identity principal ID" -ForegroundColor Green
+        }
+        elseif ($deploySreAgent) {
+            Write-Host "  ⚠️  SRE Agent system principal ID was not returned. Incident management RBAC was skipped." -ForegroundColor Yellow
         }
 
         & $rbacScript @rbacParams
@@ -820,6 +836,18 @@ if (Test-Path $k8sPath) {
 }
 else {
     Write-Host "  ⚠️  Application manifest not found at: $k8sPath" -ForegroundColor Yellow
+}
+
+# Deploy Chaos Portal (optional)
+if ($DeployPortal) {
+    Write-Host "`n🌐 Deploying Chaos Engineering Portal..." -ForegroundColor Yellow
+    $portalScript = Join-Path $PSScriptRoot "build-portal.ps1"
+    if (Test-Path $portalScript) {
+        & pwsh -NoLogo -NoProfile -File $portalScript -ResourceGroupName $infraResourceGroupName -WorkloadName $WorkloadName -SubscriptionId $SubscriptionId
+    }
+    else {
+        Write-Host "  ⚠️  Portal build script not found at: $portalScript" -ForegroundColor Yellow
+    }
 }
 
 # Run validation

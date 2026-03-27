@@ -312,6 +312,38 @@ else {
 }
 
 # =============================================================================
+# CHAOS PORTAL (optional)
+# =============================================================================
+$opsNamespace = kubectl get namespace ops -o json 2>$null | ConvertFrom-Json
+if ($opsNamespace) {
+    Write-Section "Chaos Engineering Portal (ops namespace)"
+
+    $portalPods = kubectl get pods -n ops -o json 2>$null | ConvertFrom-Json
+    foreach ($pod in $portalPods.items) {
+        $podName = $pod.metadata.name
+        $phase = $pod.status.phase
+        $ready = ($pod.status.containerStatuses | Where-Object { $_.ready -eq $true }).Count
+        $total = $pod.status.containerStatuses.Count
+        $isHealthy = ($phase -eq "Running") -and ($ready -eq $total)
+        $totalChecks++
+        if (Write-Check "$podName" $isHealthy "$phase ($ready/$total ready)") { $passedChecks++ }
+    }
+
+    $portalSvc = kubectl get svc chaos-portal-web -n ops -o json 2>$null | ConvertFrom-Json
+    if ($portalSvc) {
+        $portalIp = $null
+        if ($portalSvc.status.loadBalancer.ingress -and $portalSvc.status.loadBalancer.ingress.Count -gt 0) {
+            $portalIp = $portalSvc.status.loadBalancer.ingress[0].ip
+        }
+        $totalChecks++
+        if (Write-Check "Portal LoadBalancer" ($null -ne $portalIp) $(if ($portalIp) { "http://$portalIp" } else { "Pending" })) { $passedChecks++ }
+        if ($portalIp) {
+            Write-Host "`n  🌐 Chaos Portal URL: http://$portalIp" -ForegroundColor Cyan
+        }
+    }
+}
+
+# =============================================================================
 # SUMMARY
 # =============================================================================
 Write-Host "`n"

@@ -31,6 +31,9 @@ azureconfig.json
 !**/bicepconfig.json
 !grafana/sre-demo-dashboard.json
 !grafana/sre-demo-logs-dashboard.json
+!**/tsconfig.json
+!**/tsconfig.*.json
+!**/vite.config.ts
 
 # Bicep lock files
 .bicep/
@@ -151,6 +154,8 @@ yarn-error.log*
 # Node
 node_modules/
 package-lock.json
+!portal/api/package-lock.json
+!portal/web/package-lock.json
 yarn.lock
 
 # Python

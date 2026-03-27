@@ -61,7 +61,8 @@
         8080,
         3000,
         3001,
-        3002
+        3002,
+        8081
     ],
     "portsAttributes": {
         "8080": {
@@ -79,6 +80,10 @@
         "3002": {
             "label": "Product Service",
             "onAutoForward": "silent"
+        },
+        "8081": {
+            "label": "Chaos Portal",
+            "onAutoForward": "notify"
         }
     },
     "remoteUser": "vscode"

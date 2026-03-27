@@ -10,6 +10,7 @@ A fully automated Azure environment for demonstrating **Azure SRE Agent** capabi
 - **Azure Chaos Studio** experiments pre-provisioned for automated fault injection
 - **Full observability stack**: Log Analytics, Application Insights, Managed Grafana, Prometheus
 - **Pre-built dashboards**: Azure Portal dashboard + Grafana dashboards (Operations & Logs)
+- **Chaos Engineering Portal**: React + Fluent UI v9 web portal for launching experiments from a browser
 - **3-resource-group architecture** with enterprise naming conventions
 - **Ready-to-use scripts** for deployment, RBAC, chaos scenarios, validation, and teardown
 
@@ -116,10 +117,10 @@ kubectl apply -f k8s/base/application.yaml
 | 4 | HighCPU | Chaos Studio | CPU stress on pods | Performance analysis |
 | 5 | PendingPods | kubectl | Insufficient resources | Scheduling analysis |
 | 6 | ProbeFailure | Chaos Studio | Health endpoints return 500 | Probe configuration |
-| 7 | NetworkBlock | kubectl | NetworkPolicy blocking traffic | Connectivity analysis |
+| 7 | NetworkBlock | Chaos Studio | Network partition blocking traffic | Connectivity analysis |
 | 8 | MissingConfig | kubectl | Non-existent ConfigMap | Configuration troubleshooting |
 | 9 | MongoDBDown | Chaos Studio | Database offline | Dependency tracing, root cause |
-| 10 | ServiceMismatch | Chaos Studio | Wrong Service selector | Endpoint/selector analysis |
+| 10 | ServiceMismatch | kubectl | Wrong Service selector | Endpoint/selector analysis |
 
 ## Using SRE Agent
 
@@ -159,6 +160,31 @@ Import via Grafana UI or API after deployment.
 
 See [docs/COSTS.md](docs/COSTS.md) for detailed breakdown and optimization tips.
 
+## Chaos Engineering Portal
+
+A web-based control panel for launching, monitoring, and recovering all 10 breakable scenarios — built with React + Fluent UI v9 and hosted in the AKS cluster.
+
+### Deploy the Portal
+
+```powershell
+# Build images and deploy to AKS (no local Docker required)
+cd scripts
+.\build-portal.ps1 -ResourceGroupName EXP-SREDEMO-AKS-CUS-RG
+
+# Or include with the full deployment
+.\deploy.ps1 -Location centralus -DeployPortal -Yes
+```
+
+### Features
+
+- **Microsoft Hub-style dark theme** with Fluent UI v9
+- **Two-section scenario grid**: 6 Chaos Studio cards (blue) + 4 kubectl cards (orange)
+- **Live pod status table** auto-refreshing every 5 seconds
+- **Countdown timer** on running Chaos Studio experiments
+- **Fix All button** to restore healthy baseline in one click
+- **SRE Agent link** for instant handoff to AI-powered diagnostics
+- Runs in isolated `ops` namespace — unaffected by experiments targeting `pets`
+
 ## Project Structure
 
 ```
@@ -177,8 +203,16 @@ See [docs/COSTS.md](docs/COSTS.md) for detailed breakdown and optimization tips.
 │   ├── base/application.yaml  # Healthy Pet Store app
 │   └── scenarios/             # 10 breakable scenario manifests
 ├── grafana/                   # Grafana dashboard JSON exports
+├── portal/
+│   ├── api/                   # Backend API (Node.js + Express)
+│   ├── web/                   # Frontend (React + Fluent UI v9)
+│   ├── k8s/                   # Portal Kubernetes manifests
+│   ├── Dockerfile.api         # API container image
+│   ├── Dockerfile.web         # Frontend container image
+│   └── nginx.conf             # Nginx config for SPA + API proxy
 ├── scripts/
 │   ├── deploy.ps1             # One-click deployment
+│   ├── build-portal.ps1       # Build + deploy chaos portal
 │   ├── configure-rbac.ps1     # RBAC role assignments
 │   ├── run-chaos-scenarios.ps1 # Chaos scenario orchestration
 │   ├── validate-deployment.ps1 # Health checks
@@ -191,6 +225,7 @@ See [docs/COSTS.md](docs/COSTS.md) for detailed breakdown and optimization tips.
 | Script | Description |
 |--------|-------------|
 | `deploy.ps1` | Deploy all infrastructure (Bicep) + optional RBAC |
+| `build-portal.ps1` | Build container images and deploy chaos portal to AKS |
 | `configure-rbac.ps1` | Assign RBAC roles for SRE Agent and current user |
 | `run-chaos-scenarios.ps1` | Start/stop/check Chaos Studio experiments and kubectl scenarios |
 | `validate-deployment.ps1` | Verify resources, AKS, pods, and connectivity |

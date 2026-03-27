@@ -8,7 +8,7 @@
 //   1. OOMKilled       - Memory stress on order-service   → triggers crashloop-oom alert        [HIGH RISK]
 //   2. CrashLoop       - Pod kill on product-service      → triggers pod-restarts alert
 //   3. High CPU        - CPU stress on store-front         → triggers high-cpu alert
-//   4. Probe Failure   - HTTP 500 on store-admin health    → triggers probe-failure alert
+//   4. Probe Failure   - HTTP 500 on store-admin:8081      → triggers probe-failure alert
 //   5. Network Block   - Network partition on makeline-svc → triggers network-container-errors alert [HIGH RISK]
 //   6. MongoDB Down    - Pod kill on mongodb               → triggers pod-failures alert           [HIGH RISK]
 // =============================================================================
@@ -145,7 +145,7 @@ resource expOomKilled 'Microsoft.Chaos/experiments@2024-01-01' = {
                 parameters: [
                   {
                     key: 'jsonSpec'
-                    value: '{"mode":"one","selector":{"namespaces":["pets"],"labelSelectors":{"app":"order-service"}},"stressors":{"memory":{"workers":1,"size":"128MB"}}}'
+                    value: '{"mode":"one","selector":{"namespaces":["pets"],"labelSelectors":{"app":"order-service"}},"stressors":{"memory":{"workers":1,"size":"200MB"}}}'
                   }
                 ]
               }
@@ -310,7 +310,7 @@ resource expProbeFailure 'Microsoft.Chaos/experiments@2024-01-01' = {
                 parameters: [
                   {
                     key: 'jsonSpec'
-                    value: '{"mode":"all","selector":{"namespaces":["pets"],"labelSelectors":{"app":"store-admin"}},"target":"Request","port":8091,"path":"/health","method":"GET","replace":{"code":500,"body":"eyJzdGF0dXMiOiJ1bmhlYWx0aHkifQ=="}}'
+                    value: '{"mode":"all","selector":{"namespaces":["pets"],"labelSelectors":{"app":"store-admin"}},"target":"Request","port":8081,"path":"/health","method":"GET","replace":{"code":500,"body":"eyJzdGF0dXMiOiJ1bmhlYWx0aHkifQ=="}}'
                   }
                 ]
               }

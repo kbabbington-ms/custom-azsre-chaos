@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chaos-portal-api
+  namespace: ops
+  labels:
+    app: chaos-portal-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chaos-portal-api
+  template:
+    metadata:
+      labels:
+        app: chaos-portal-api
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: chaos-portal
+      nodeSelector:
+        nodepool-type: user
+      containers:
+        - name: api
+          image: "${ACR_NAME}.azurecr.io/chaos-portal-api:latest"
+          ports:
+            - containerPort: 3001
+          env:
+            - name: PORT
+              value: "3001"
+            - name: AZURE_SUBSCRIPTION_ID
+              value: "${AZURE_SUBSCRIPTION_ID}"
+            - name: AZURE_RESOURCE_GROUP
+              value: "${AZURE_RESOURCE_GROUP}"
+            - name: WORKLOAD_NAME
+              value: "${WORKLOAD_NAME}"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3001
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: scenarios
+              mountPath: /app/scenarios
+              readOnly: true
+      volumes:
+        - name: scenarios
+          configMap:
+            name: chaos-scenarios

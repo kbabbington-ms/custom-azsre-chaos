@@ -48,6 +48,9 @@ param(
     [string]$SreAgentPrincipalId,
 
     [Parameter()]
+    [string]$SreAgentSystemPrincipalId,
+
+    [Parameter()]
     [string]$CurrentUserPrincipalId
 )
 
@@ -296,7 +299,87 @@ if ($SreAgentPrincipalId) {
     }
 }
 
-# 4. Grafana roles (if Grafana is deployed — in monitor RG)
+# 4. SRE Agent SYSTEM-assigned identity roles for Azure Monitor incident management
+# The system MI needs Monitoring Contributor, Reader, and Log Analytics Contributor
+# at appropriate scopes for the Azure Monitor integration to work.
+if ($SreAgentSystemPrincipalId) {
+    Write-Host "`n  📌 SRE Agent System Identity (Azure Monitor Incident Management):" -ForegroundColor Cyan
+    
+    Set-RoleAssignment `
+        -Scope "/subscriptions/$subscriptionId" `
+        -RoleDefinition "Monitoring Contributor" `
+        -PrincipalId $SreAgentSystemPrincipalId `
+        -PrincipalType "ServicePrincipal" `
+        -Description "Monitoring Contributor for SRE Agent system MI (incident management)"
+    
+    Set-RoleAssignment `
+        -Scope "/subscriptions/$subscriptionId" `
+        -RoleDefinition "Reader" `
+        -PrincipalId $SreAgentSystemPrincipalId `
+        -PrincipalType "ServicePrincipal" `
+        -Description "Reader for SRE Agent system MI at subscription level"
+    
+    $monitorRgForSystemMi = if ($MonitorResourceGroupName) { $MonitorResourceGroupName } else { $ResourceGroupName }
+    Set-RoleAssignment `
+        -Scope "/subscriptions/$subscriptionId/resourceGroups/$monitorRgForSystemMi" `
+        -RoleDefinition "Log Analytics Contributor" `
+        -PrincipalId $SreAgentSystemPrincipalId `
+        -PrincipalType "ServicePrincipal" `
+        -Description "Log Analytics Contributor for SRE Agent system MI on monitor RG"
+    
+    Set-RoleAssignment `
+        -Scope "/subscriptions/$subscriptionId/resourceGroups/$monitorRgForSystemMi" `
+        -RoleDefinition "Contributor" `
+        -PrincipalId $SreAgentSystemPrincipalId `
+        -PrincipalType "ServicePrincipal" `
+        -Description "Contributor for SRE Agent system MI on monitor RG"
+    
+    Set-RoleAssignment `
+        -Scope "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroupName" `
+        -RoleDefinition "Contributor" `
+        -PrincipalId $SreAgentSystemPrincipalId `
+        -PrincipalType "ServicePrincipal" `
+        -Description "Contributor for SRE Agent system MI on infra RG"
+    
+    # Log Analytics workspace access
+    $monitorRgForLaSystem = if ($MonitorResourceGroupName) { $MonitorResourceGroupName } else { $ResourceGroupName }
+    $logAnalyticsSystem = az monitor log-analytics workspace list --resource-group $monitorRgForLaSystem --output json 2>$null | ConvertFrom-Json | Select-Object -First 1
+    if ($logAnalyticsSystem) {
+        Set-RoleAssignment `
+            -Scope $logAnalyticsSystem.id `
+            -RoleDefinition "Log Analytics Contributor" `
+            -PrincipalId $SreAgentSystemPrincipalId `
+            -PrincipalType "ServicePrincipal" `
+            -Description "Log Analytics Contributor for SRE Agent system MI (query logs)"
+    }
+    
+    # App Insights read access
+    $appInsightsSystem = az resource list --resource-group $monitorRgForLaSystem --resource-type "Microsoft.Insights/components" --output json 2>$null | ConvertFrom-Json | Select-Object -First 1
+    if ($appInsightsSystem) {
+        Set-RoleAssignment `
+            -Scope $appInsightsSystem.id `
+            -RoleDefinition "Monitoring Reader" `
+            -PrincipalId $SreAgentSystemPrincipalId `
+            -PrincipalType "ServicePrincipal" `
+            -Description "Monitoring Reader for SRE Agent system MI on App Insights"
+    }
+}
+elseif ($SreAgentPrincipalId) {
+    # Auto-discover the system MI from the SRE Agent resource
+    if ($SreResourceGroupName) {
+        Write-Host "`n  📌 Auto-discovering SRE Agent system identity..." -ForegroundColor Cyan
+        $agentJson = az resource list --resource-group $SreResourceGroupName --resource-type "Microsoft.App/agents" --output json 2>$null | ConvertFrom-Json | Select-Object -First 1
+        if ($agentJson) {
+            $agentDetail = az rest --method GET --url "https://management.azure.com$($agentJson.id)?api-version=2025-05-01-preview" --query "identity.principalId" -o tsv 2>$null
+            if ($agentDetail) {
+                Write-Host "  ✅ Found system MI: $agentDetail" -ForegroundColor Green
+                Write-Host "  ℹ️  Re-run with -SreAgentSystemPrincipalId $agentDetail to assign incident management roles" -ForegroundColor Yellow
+            }
+        }
+    }
+}
+
+# 5. Grafana roles (if Grafana is deployed — in monitor RG)
 $grafanaRg = if ($MonitorResourceGroupName) { $MonitorResourceGroupName } else { $ResourceGroupName }
 $grafanaJson = az grafana list --resource-group $grafanaRg --output json 2>$null
 $grafana = $null

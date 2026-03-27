@@ -204,7 +204,7 @@ resource highCpuAlert 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
     criteria: {
       allOf: [
         {
-          query: 'Perf | where TimeGenerated > ago(5m) | where ObjectName == "K8SContainer" | where CounterName == "cpuUsageNanoCores" | extend podNamespace = tostring(split(InstanceName, "/")[0]) | where podNamespace == "${appNamespace}" | summarize AvgCPU = avg(CounterValue) by bin(TimeGenerated, 1m), Computer, InstanceName | where AvgCPU > 800000000'
+          query: 'Perf | where TimeGenerated > ago(5m) | where ObjectName == "K8SContainer" | where CounterName == "cpuUsageNanoCores" | extend podNamespace = tostring(split(InstanceName, "/")[0]) | where podNamespace == "${appNamespace}" | summarize AvgCPU = avg(CounterValue) by bin(TimeGenerated, 1m), Computer, InstanceName | where AvgCPU > 80000000'
           timeAggregation: 'Count'
           operator: 'GreaterThan'
           threshold: 0
@@ -263,20 +263,20 @@ resource networkErrorAlert 'Microsoft.Insights/scheduledQueryRules@2023-12-01' =
   kind: 'LogAlert'
   properties: {
     displayName: 'Pet Store - Network errors or containers not ready (Exp 5: Network Block)'
-    description: 'Triggers when containers become not-ready or network-related errors are detected. Maps to Chaos experiment 5 (network partition on makeline-service).'
+    description: 'Triggers when containers become not-ready, enter error states, or Kubernetes reports warning events for the application. Maps to Chaos experiment 5 (network partition on makeline-service).'
     enabled: true
     severity: 1
     scopes: [
       logAnalyticsWorkspaceId
     ]
     evaluationFrequency: 'PT1M'
-    windowSize: 'PT1M'
+    windowSize: 'PT5M'
     autoMitigate: true
     skipQueryValidation: true
     criteria: {
       allOf: [
         {
-          query: 'KubePodInventory | where TimeGenerated > ago(2m) | where Namespace == "${appNamespace}" | where ContainerStatus != "Running" and ContainerStatus != "Terminated" and ContainerStatus != "" | where ContainerStatusReason in ("ContainersNotReady", "CrashLoopBackOff", "Error", "ImagePullBackOff")'
+          query: 'let statusIssues = KubePodInventory | where TimeGenerated > ago(5m) | where Namespace == "${appNamespace}" | where ContainerStatus !in ("Running", "Terminated", "") | where ContainerStatusReason in ("ContainersNotReady", "CrashLoopBackOff", "Error", "ImagePullBackOff"); let eventIssues = KubeEvents | where TimeGenerated > ago(5m) | where Namespace == "${appNamespace}" | where Type == "Warning" | where Reason in ("Unhealthy", "BackOff", "NetworkNotReady", "FailedScheduling", "Failed"); union statusIssues, eventIssues'
           timeAggregation: 'Count'
           operator: 'GreaterThan'
           threshold: 0
